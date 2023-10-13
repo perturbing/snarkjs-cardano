@@ -49,7 +49,7 @@ export default async function plonkVerify(_vk_verifier, _publicSignals, _proof, 
         logger.error("Invalid number of public inputs");
         return false;
     }
-    const challenges = calculatechallenges(curve, proof, publicSignals, vk_verifier);
+    const challenges = calculatechallenges(curve, proof, publicSignals, vk_verifier, logger);
     
     if (logger) {
         logger.debug("beta: " + Fr.toString(challenges.beta, 16));    
@@ -168,7 +168,7 @@ function isWellConstructed(curve, proof) {
     return true;
 }
 
-function calculatechallenges(curve, proof, publicSignals, vk) {
+function calculatechallenges(curve, proof, publicSignals, vk, logger) {
     const Fr = curve.Fr;
     const res = {};
     const transcript = new Keccak256Transcript(curve);

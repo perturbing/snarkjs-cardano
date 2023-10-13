@@ -44,7 +44,7 @@ export class Keccak256Transcript {
         this.data.push({type: SCALAR, data: scalar});
     }
 
-    getChallenge() {
+    getChallenge(logger) {
         if(0 === this.data.length) {
             throw new Error("Keccak256Transcript: No data to generate a transcript");
         }
@@ -54,17 +54,46 @@ export class Keccak256Transcript {
 
         this.data.forEach(element => POLYNOMIAL === element.type ? nPolynomials++ : nScalars++);
 
-        let buffer = new Uint8Array(nScalars * this.Fr.n8 + nPolynomials * this.G1.F.n8 * 2);
+        let buffer = new Uint8Array(nScalars * this.Fr.n8 + nPolynomials * this.G1.F.n8 );
         let offset = 0;
 
         for (let i = 0; i < this.data.length; i++) {
             if (POLYNOMIAL === this.data[i].type) {
-                this.G1.toRprUncompressed(buffer, offset, this.data[i].data);
-                offset += this.G1.F.n8 * 2;
+                // Add the compressed x coordinate of the buffer
+                this.G1.toRprCompressed(buffer, offset, this.data[i].data);
+                // convert to affine
+                const point = this.G1.toAffine(this.data[i].data);
+                // convert to affine and negate
+                const pointInv = this.G1.toAffine(this.G1.neg(this.data[i].data));
+                // get the y coordinate
+                const y = this.G1.toObject(point)[1];
+                // get the y coordinate of the negated point
+                const yInv = this.G1.toObject(pointInv)[1];
+                // define an empty the mask
+                let mask = 0b00000000;
+                // check if the point is the point at infinity
+                // and set the mask accordingly
+                if (this.G1.isZero(this.data[i].data)) {
+                    mask = 0b11000000;
+                } else if (y < yInv) {
+                    mask = 0b10000000;
+                } else {
+                    mask = 0b10100000;
+                }
+                const byte = buffer[offset];
+                const newByte = byte | mask;
+                buffer[offset] = newByte;
+                offset += this.G1.F.n8;
             } else {
                 this.Fr.toRprBE(buffer, offset, this.data[i].data);
                 offset += this.Fr.n8;
             }
+        }
+        
+        if (logger) {
+            logger.debug("Keccak256Transcript: buffer = " + buffer.toString());
+            logger.debug("length of buffer = " + buffer.length);
+            logger.debug("hash = " + new Uint8Array(keccak256.arrayBuffer(buffer)));
         }
 
         const value = Scalar.fromRprBE(new Uint8Array(keccak256.arrayBuffer(buffer)));
