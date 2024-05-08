@@ -1,3 +1,6 @@
+> **⚠️ Disclaimer**
+> 
+> This is a fork of the original [snarkJS](https://github.com/iden3/snarkjs) project. The modifications and improvements contained in this repository are not directly maintained or endorsed by the original authors. For the most reliable and up-to-date information on the original snarkJS project, please refer to the [official repository](https://github.com/iden3/snarkjs). Use this fork at your own discretion.
 
 ![tests](https://github.com/iden3/snarkjs/workflows/tests/badge.svg)![Check%20snarkjs%20tutorial](https://github.com/iden3/snarkjs/workflows/Check%20snarkjs%20tutorial/badge.svg)
 
