@@ -6874,10 +6874,110 @@ class Proof {
 */
 const { keccak256 } = jsSha3__default["default"];
 
+const POLYNOMIAL$1 = 0;
+const SCALAR$1 = 1;
+
+class Keccak256Transcript {
+    constructor(curve) {
+        this.G1 = curve.G1;
+        this.Fr = curve.Fr;
+
+        this.reset();
+    }
+
+    reset() {
+        this.data = [];
+    }
+
+    addPolCommitment(polynomialCommitment) {
+        this.data.push({type: POLYNOMIAL$1, data: polynomialCommitment});
+    }
+
+    addScalar(scalar) {
+        this.data.push({type: SCALAR$1, data: scalar});
+    }
+
+    getChallenge(logger) {
+        if(0 === this.data.length) {
+            throw new Error("Keccak256Transcript: No data to generate a transcript");
+        }
+
+        let nPolynomials = 0;
+        let nScalars = 0;
+
+        this.data.forEach(element => POLYNOMIAL$1 === element.type ? nPolynomials++ : nScalars++);
+
+        let buffer = new Uint8Array(nScalars * this.Fr.n8 + nPolynomials * this.G1.F.n8 );
+        let offset = 0;
+
+        for (let i = 0; i < this.data.length; i++) {
+            if (POLYNOMIAL$1 === this.data[i].type) {
+                // Add the compressed x coordinate of the buffer
+                this.G1.toRprCompressed(buffer, offset, this.data[i].data);
+                // convert to affine
+                const point = this.G1.toAffine(this.data[i].data);
+                // convert to affine and negate
+                const pointInv = this.G1.toAffine(this.G1.neg(this.data[i].data));
+                // get the y coordinate
+                const y = this.G1.toObject(point)[1];
+                // get the y coordinate of the negated point
+                const yInv = this.G1.toObject(pointInv)[1];
+                // define an empty the mask
+                let mask = 0b00000000;
+                // check if the point is the point at infinity
+                // and set the mask accordingly
+                if (this.G1.isZero(this.data[i].data)) {
+                    mask = 0b11000000;
+                } else if (y < yInv) {
+                    mask = 0b10000000;
+                } else {
+                    mask = 0b10100000;
+                }
+                const byte = buffer[offset];
+                const newByte = byte | mask;
+                buffer[offset] = newByte;
+                offset += this.G1.F.n8;
+            } else {
+                this.Fr.toRprBE(buffer, offset, this.data[i].data);
+                offset += this.Fr.n8;
+            }
+        }
+        
+        if (logger) {
+            logger.debug("Keccak256Transcript: buffer = " + buffer.toString());
+            logger.debug("length of buffer = " + buffer.length);
+            logger.debug("hash = " + new Uint8Array(keccak256.arrayBuffer(buffer)));
+        }
+
+        const value = ffjavascript.Scalar.fromRprBE(new Uint8Array(keccak256.arrayBuffer(buffer)));
+        return this.Fr.e(value);
+    }
+}
+
+/*
+    Copyright 2022 iden3 association.
+
+    This file is part of snarkjs.
+
+    snarkjs is a free software: you can redistribute it and/or
+    modify it under the terms of the GNU General Public License as published by the
+    Free Software Foundation, either version 3 of the License, or (at your option)
+    any later version.
+
+    snarkjs is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+    or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+    more details.
+
+    You should have received a copy of the GNU General Public License along with
+    snarkjs. If not, see <https://www.gnu.org/licenses/>.
+*/
+var blake2b = require('blake2b-wasm');
+
 const POLYNOMIAL = 0;
 const SCALAR = 1;
 
-class Keccak256Transcript {
+class Blake2b224Transcript {
     constructor(curve) {
         this.G1 = curve.G1;
         this.Fr = curve.Fr;
@@ -6944,12 +7044,15 @@ class Keccak256Transcript {
         }
         
         if (logger) {
-            logger.debug("Keccak256Transcript: buffer = " + buffer.toString());
+            var hash = blake2b(28);
+            hash.update(buffer);
+            logger.debug("Blake2b224Transcript: buffer = " + buffer.toString());
             logger.debug("length of buffer = " + buffer.length);
-            logger.debug("hash = " + new Uint8Array(keccak256.arrayBuffer(buffer)));
+            logger.debug("hash = " + new Uint8Array(hash.digest()));
         }
 
-        const value = ffjavascript.Scalar.fromRprBE(new Uint8Array(keccak256.arrayBuffer(buffer)));
+        var hashDigest = blake2b(28).update(buffer);
+        const value = ffjavascript.Scalar.fromRprBE(new Uint8Array(hashDigest.digest()));
         return this.Fr.e(value);
     }
 }
@@ -8227,7 +8330,8 @@ async function plonk16Prove(zkeyFileName, witnessFileName, logger) {
 
     let challenges = {};
     let proof = new Proof(curve, logger);
-    const transcript = new Keccak256Transcript(curve);
+    // const transcript = new Keccak256Transcript(curve);
+    const transcript = new Blake2b224Transcript(curve);
 
     if (logger) logger.debug(`> Reading Section ${ZKEY_PL_ADDITIONS_SECTION}. Additions`);
     await calculateAdditions();
@@ -9089,7 +9193,7 @@ async function plonkVerify$1(_vk_verifier, _publicSignals, _proof, logger) {
         logger.error("Invalid number of public inputs");
         return false;
     }
-    const challenges = calculatechallenges(curve, proof, publicSignals, vk_verifier);
+    const challenges = calculatechallenges(curve, proof, publicSignals, vk_verifier, logger);
     
     if (logger) {
         logger.debug("beta: " + Fr.toString(challenges.beta, 16));    
@@ -9211,7 +9315,8 @@ function isWellConstructed(curve, proof) {
 function calculatechallenges(curve, proof, publicSignals, vk, logger) {
     const Fr = curve.Fr;
     const res = {};
-    const transcript = new Keccak256Transcript(curve);
+    // const transcript = new Keccak256Transcript(curve);
+    const transcript = new Blake2b224Transcript(curve);
 
     // Challenge round 2: beta and gamma
     transcript.addPolCommitment(vk.Qm);
@@ -9231,7 +9336,7 @@ function calculatechallenges(curve, proof, publicSignals, vk, logger) {
     transcript.addPolCommitment(proof.B);
     transcript.addPolCommitment(proof.C);
 
-    res.beta = transcript.getChallenge();
+    res.beta = transcript.getChallenge(logger);
 
     transcript.reset();
     transcript.addScalar(res.beta);

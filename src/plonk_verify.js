@@ -22,6 +22,7 @@ import * as curves from "./curves.js";
 import {  utils }   from "ffjavascript";
 const {unstringifyBigInts} = utils;
 import { Keccak256Transcript } from "./Keccak256Transcript.js";
+import { Blake2b224Transcript } from "./Blake2b224Transcript.js";
 
 
 
@@ -171,7 +172,8 @@ function isWellConstructed(curve, proof) {
 function calculatechallenges(curve, proof, publicSignals, vk, logger) {
     const Fr = curve.Fr;
     const res = {};
-    const transcript = new Keccak256Transcript(curve);
+    // const transcript = new Keccak256Transcript(curve);
+    const transcript = new Blake2b224Transcript(curve);
 
     // Challenge round 2: beta and gamma
     transcript.addPolCommitment(vk.Qm);
@@ -191,7 +193,7 @@ function calculatechallenges(curve, proof, publicSignals, vk, logger) {
     transcript.addPolCommitment(proof.B);
     transcript.addPolCommitment(proof.C);
 
-    res.beta = transcript.getChallenge();
+    res.beta = transcript.getChallenge(logger);
 
     transcript.reset();
     transcript.addScalar(res.beta);
