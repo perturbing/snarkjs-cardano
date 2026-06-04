@@ -4,6 +4,15 @@
 
 let
   sources = {
+    "@noble/hashes-1.8.0" = {
+      name = "_at_noble_slash_hashes";
+      packageName = "@noble/hashes";
+      version = "1.8.0";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz";
+        sha512 = "jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==";
+      };
+    };
     "@iden3/bigarray-0.0.2" = {
       name = "_at_iden3_slash_bigarray";
       packageName = "@iden3/bigarray";
@@ -353,6 +362,7 @@ in
       sources."b4a-1.6.4"
       sources."balanced-match-1.0.2"
       sources."bfj-7.0.2"
+      sources."@noble/hashes-1.8.0"
       sources."blake2b-wasm-2.4.0"
       sources."bluebird-3.7.2"
       sources."brace-expansion-2.0.1"
