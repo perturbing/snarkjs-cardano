@@ -7,6 +7,31 @@ import visualizer from "rollup-plugin-visualizer";
 import { O_TRUNC, O_CREAT, O_RDWR, O_EXCL, O_RDONLY } from "constants";
 
 const empty = "export default {}";
+
+// Browser stub for blake2b-wasm: ceremony/CLI functions are never called in-browser,
+// but the module must resolve so the IIFE bundle doesn't leave dangling require() calls.
+// Basic update/digest is implemented via @noble/hashes for any code path that IS reached
+// (e.g. Blake2b224Transcript — though that now imports @noble/hashes directly).
+const blake2bStub = `
+import { blake2b as _noble_blake2b } from "@noble/hashes/blake2b";
+function Blake2b(digestLen) {
+  const chunks = [];
+  return {
+    update(data) { chunks.push(data instanceof Uint8Array ? data : new Uint8Array(data)); return this; },
+    digest() {
+      const total = chunks.reduce((s, c) => s + c.length, 0);
+      const buf = new Uint8Array(total);
+      let off = 0;
+      for (const c of chunks) { buf.set(c, off); off += c.length; }
+      return _noble_blake2b(buf, { dkLen: digestLen });
+    },
+    setPartialHash() { throw new Error("blake2b setPartialHash not supported in browser"); },
+    getPartialHash() { throw new Error("blake2b getPartialHash not supported in browser"); },
+  };
+}
+export default Blake2b;
+`;
+
 // We create a stub with these constants instead of including the entire constants definition
 const constants = `
 export const O_TRUNC = ${O_TRUNC};
@@ -38,6 +63,7 @@ export default {
             stream: empty,
             util: empty,
             constants: constants,
+            "blake2b-wasm": blake2bStub,
         }),
         nodeResolve({
             browser: true,
